@@ -26,7 +26,7 @@ func UpdateSessionHandler() gin.HandlerFunc {
 			return
 		}
 
-		// 2. SEGURIDAD: Verificar que el usuario sea el autor
+		// 2. SEGURIDAD: Verificar que el usuario sea el autor (o Admin)
 		if session.ProfessionalID != currentUser.ID && currentUser.Role != domains.RoleAdmin {
 			c.JSON(http.StatusForbidden, gin.H{"error": "You can only edit your own sessions"})
 			return
@@ -40,7 +40,8 @@ func UpdateSessionHandler() gin.HandlerFunc {
 		}
 
 		// 4. Actualizar campos
-		// Nota: Convertimos los tipos complejos manualmente
+
+		// Vitals: Convertir map a JSONB
 		if input.Vitals != nil {
 			vitalsJSON, _ := json.Marshal(input.Vitals)
 			session.Vitals = datatypes.JSON(vitalsJSON)
@@ -52,17 +53,17 @@ func UpdateSessionHandler() gin.HandlerFunc {
 		session.PatientPerformance = input.PatientPerformance
 		session.NextSessionNotes = input.NextSessionNotes
 
-		// Actualizar incidente si cambia
+		// Incidentes
 		session.HasIncident = input.HasIncident
 		session.IncidentDetails = input.IncidentDetails
+		// Solo actualizamos la foto del incidente si viene una nueva o si se limpió explícitamente?
+		// Generalmente en updates, reemplazamos el valor:
 		session.IncidentPhoto = input.IncidentPhoto
 
-		// Actualizar fotos si se envían nuevas
-		if len(input.Photos) > 0 {
-			session.Photos = pq.StringArray(input.Photos)
-		}
+		// Fotos: Asignamos directamente para permitir borrar todas (array vacío)
+		session.Photos = pq.StringArray(input.Photos)
 
-		// 5. Guardar
+		// 5. Guardar cambios
 		if err := db.Save(&session).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update session"})
 			return

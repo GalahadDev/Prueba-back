@@ -15,8 +15,9 @@ func ListSessionsHandler() gin.HandlerFunc {
 		db := database.GetDB()
 		var sessions []domains.Session
 
-		// Query base
-		query := db.Model(&domains.Session{})
+		// MODIFICACIÓN CLAVE: Agregamos .Preload("Creator")
+		// Esto carga la relación "Creator" (el usuario profesional) para tener sus datos (nombre, foto, etc.)
+		query := db.Model(&domains.Session{}).Preload("Creator")
 
 		// 1. Filtro por Paciente (El más común)
 		patientID := c.Query("patient_id")
@@ -37,8 +38,6 @@ func ListSessionsHandler() gin.HandlerFunc {
 		}
 
 		// 4. Ordenamiento: Siempre lo más reciente primero
-		// Usamos Preload para traer datos si tuvieramos relaciones definidas,
-		// pero por ahora Session es self-contained.
 		if err := query.Order("created_at DESC").Find(&sessions).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch sessions"})
 			return

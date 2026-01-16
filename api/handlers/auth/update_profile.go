@@ -16,11 +16,13 @@ type UpdateProfileInput struct {
 	FullName  string `json:"full_name"`
 	Specialty string `json:"specialty"`
 	Phone     string `json:"phone"`
+	Gender    string `json:"gender"`     // "Masculino", "Femenino", "Otro"
+	Bio       string `json:"bio"`        // "Experto en kinesiología deportiva..."
+	BirthDate string `json:"birth_date"` // YYYY-MM-DD
 }
 
 func UpdateProfileHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 1. Obtener usuario autenticado (del contexto del middleware)
 		currentUser := c.MustGet("currentUser").(domains.User)
 
 		var input UpdateProfileInput
@@ -31,22 +33,17 @@ func UpdateProfileHandler() gin.HandlerFunc {
 
 		db := database.GetDB()
 
-		// 2. Leer el profile_data actual (que tiene lo de Google)
+		// Leer el profile_data actual
 		var currentProfile map[string]interface{}
-
-		// Si está vacío o es nulo, iniciamos un mapa nuevo
 		if len(currentUser.ProfileData) == 0 {
 			currentProfile = make(map[string]interface{})
 		} else {
-			// Convertimos el JSONB de Gorm a un mapa de Go para editarlo
 			if err := json.Unmarshal(currentUser.ProfileData, &currentProfile); err != nil {
-				// Si falla, reseteamos para evitar errores
 				currentProfile = make(map[string]interface{})
 			}
 		}
 
-		// 3. Actualizar/Agregar los nuevos campos
-		// Solo actualizamos si el usuario envió algo (no string vacío)
+		// Actualizar/Agregar campos dinámicamente
 		if input.FullName != "" {
 			currentProfile["full_name"] = input.FullName
 		}
@@ -56,16 +53,25 @@ func UpdateProfileHandler() gin.HandlerFunc {
 		if input.Phone != "" {
 			currentProfile["phone"] = input.Phone
 		}
+		// Nuevos campos al JSONB
+		if input.Gender != "" {
+			currentProfile["gender"] = input.Gender
+		}
+		if input.Bio != "" {
+			currentProfile["bio"] = input.Bio
+		}
+		if input.BirthDate != "" {
+			currentProfile["birth_date"] = input.BirthDate
+		}
 
-		// 4. Volver a empaquetar en JSONB
+		// Empaquetar y Guardar
 		newProfileJSON, err := json.Marshal(currentProfile)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process profile data"})
 			return
 		}
 
-		// 5. Guardar en Base de Datos
-		// Actualizamos solo el campo ProfileData para ser eficientes
+		// Actualizamos profile_data
 		if err := db.Model(&currentUser).Update("profile_data", datatypes.JSON(newProfileJSON)).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
 			return

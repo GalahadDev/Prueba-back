@@ -13,6 +13,7 @@ type Session struct {
 	ID             uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
 	PatientID      uuid.UUID `gorm:"type:uuid;not null"`
 	ProfessionalID uuid.UUID `gorm:"type:uuid;not null"`
+	Creator        User      `gorm:"foreignKey:ProfessionalID" json:"Creator"`
 
 	// Datos Clínicos
 	InterventionPlan   string         `gorm:"type:text;not null"`

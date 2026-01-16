@@ -37,6 +37,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
+
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
@@ -149,11 +150,20 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		if user.Status == domains.StatusInactive {
-			if c.Request.Method == "PUT" && strings.Contains(c.Request.URL.Path, "/api/auth/profile") {
+			// Permisos especiales para usuarios INACTIVOS:
+			// 1. Completar su perfil (PUT /profile)
+			// 2. Consultar sus propios datos para ver qué han llenado (GET /me) <--- ESTO FALTABA
+
+			isProfileUpdate := c.Request.Method == "PUT" && strings.Contains(c.Request.URL.Path, "/api/auth/profile")
+			isGetMe := c.Request.Method == "GET" && strings.Contains(c.Request.URL.Path, "/api/auth/me")
+
+			if isProfileUpdate || isGetMe {
 				c.Set("currentUser", user)
 				c.Next()
 				return
 			}
+
+			// Cualquier otra ruta (pacientes, sesiones, etc.) sigue prohibida
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Account Pending Approval"})
 			return
 		}

@@ -13,17 +13,34 @@ import (
 	"gorm.io/datatypes"
 )
 
-// Input Validado: Esto es lo que Postman envía.
-// Las etiquetas `json:"..."` son OBLIGATORIAS para que Go entienda snake_case.
+// Input Validado
 type CreatePatientInput struct {
-	FirstName     string `json:"first_name" binding:"required"` // Postman envía "first_name"
-	LastName      string `json:"last_name" binding:"required"`
-	RUT           string `json:"rut" binding:"required"`        // Obligatorio
-	BirthDate     string `json:"birth_date" binding:"required"` // YYYY-MM-DD
-	Email         string `json:"email" binding:"required,email"`
-	Phone         string `json:"phone"`
-	Diagnosis     string `json:"diagnosis"`
-	ConsentPDFUrl string `json:"consent_pdf_url" binding:"required"`
+	FirstName      string `json:"first_name" binding:"required"`
+	LastName       string `json:"last_name" binding:"required"`
+	RUT            string `json:"rut" binding:"required"`
+	BirthDate      string `json:"birth_date" binding:"required"` // YYYY-MM-DD
+	Email          string `json:"email" binding:"required,email"`
+	Phone          string `json:"phone"`
+	Diagnosis      string `json:"diagnosis"`
+	ConsentPDFUrl  string `json:"consent_pdf_url" binding:"required"`
+	Sex            string `json:"sex" binding:"required"` // "Masculino", "Femenino"
+	EmergencyPhone string `json:"emergency_phone"`
+}
+
+// Helper para calcular edad exacta
+func calculateAge(birthDateStr string) int {
+	birthDate, err := time.Parse("2006-01-02", birthDateStr)
+	if err != nil {
+		return 0
+	}
+	now := time.Now()
+	age := now.Year() - birthDate.Year()
+
+	// Restar un año si aún no ha pasado el cumpleaños este año
+	if now.YearDay() < birthDate.YearDay() {
+		age--
+	}
+	return age
 }
 
 func CreatePatientHandler(cfg *config.Config) gin.HandlerFunc {
@@ -31,29 +48,32 @@ func CreatePatientHandler(cfg *config.Config) gin.HandlerFunc {
 		currentUser := c.MustGet("currentUser").(domains.User)
 
 		var input CreatePatientInput
-		// 1. Gin intenta leer el JSON y valida los campos obligatorios
 		if err := c.ShouldBindJSON(&input); err != nil {
-			// Si falta "rut" o "first_name", aquí saltará el error que viste
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		// Validar formato de fecha (opcional pero recomendado)
+		// Validar formato de fecha
 		if _, err := time.Parse("2006-01-02", input.BirthDate); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Birth date must be YYYY-MM-DD"})
 			return
 		}
 
-		// 2. EMPAQUETADO: Convertimos los campos sueltos al JSONB `personal_info`
-		// Esto es lo que se guardará en la columna 'personal_info' de la BD
+		// CALCULAR EDAD
+		age := calculateAge(input.BirthDate)
+
+		// EMPAQUETADO ACTUALIZADO
 		personalInfoMap := map[string]interface{}{
-			"first_name": input.FirstName,
-			"last_name":  input.LastName,
-			"rut":        input.RUT,
-			"birth_date": input.BirthDate,
-			"email":      input.Email,
-			"phone":      input.Phone,
-			"diagnosis":  input.Diagnosis,
+			"first_name":      input.FirstName,
+			"last_name":       input.LastName,
+			"rut":             input.RUT,
+			"birth_date":      input.BirthDate,
+			"email":           input.Email,
+			"phone":           input.Phone,
+			"diagnosis":       input.Diagnosis,
+			"sex":             input.Sex,
+			"age":             age,
+			"emergency_phone": input.EmergencyPhone,
 		}
 
 		personalInfoBytes, err := json.Marshal(personalInfoMap)
@@ -62,12 +82,10 @@ func CreatePatientHandler(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// 3. Crear el Modelo para la BD
 		patient := domains.Patient{
 			CreatorID:     currentUser.ID,
-			PersonalInfo:  datatypes.JSON(personalInfoBytes), // Aquí va el JSON empaquetado
+			PersonalInfo:  datatypes.JSON(personalInfoBytes),
 			ConsentPDFUrl: input.ConsentPDFUrl,
-			// DisabilityReport y CareNotes quedan vacíos al crear, se llenan luego si es necesario
 		}
 
 		if err := database.GetDB().Create(&patient).Error; err != nil {

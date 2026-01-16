@@ -34,3 +34,27 @@ func UploadImageHandler(cfg *config.Config) gin.HandlerFunc {
 		})
 	}
 }
+
+// UploadConsentHandler maneja la subida de PDFs de consentimiento
+func UploadConsentHandler(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		file, err := c.FormFile("file")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "File is mandatory"})
+			return
+		}
+
+		storage := services.NewStorageService(cfg)
+		// Usamos el método específico para PDF que ya tenías en el servicio
+		url, err := storage.UploadConsentPDF(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload PDF", "details": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Consent PDF uploaded successfully",
+			"url":     url,
+		})
+	}
+}

@@ -36,7 +36,7 @@ func main() {
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"https://tradelog-app.vercel.app", "https://cron-job.org", "http://localhost:5173"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
@@ -70,6 +70,8 @@ func main() {
 
 			// NUEVO: Perfil Unificado (Ojo de Dios del Paciente)
 			patientsGroup.GET("/:id", patients.GetPatientProfileHandler())
+
+			patientsGroup.PUT("/:id", patients.UpdatePatientHandler())
 		}
 
 		sessionsGroup := api.Group("/sessions")
@@ -92,6 +94,8 @@ func main() {
 
 		uploads := api.Group("/uploads")
 		uploads.POST("/image", common.UploadImageHandler(cfg))
+
+		uploads.POST("/consent", common.UploadConsentHandler(cfg))
 	}
 
 	collabGroup := api.Group("/collaborations")
@@ -102,6 +106,8 @@ func main() {
 		// Responder: PUT /api/collaborations/:id/respond
 		// :id es el ID de la COLABORACIÓN (no del paciente ni usuario)
 		collabGroup.PUT("/:id/respond", collaborations.RespondInvitationHandler(cfg))
+
+		collabGroup.GET("/pending", collaborations.GetPendingInvitationsHandler())
 	}
 
 	// --- GRUPO REPORTES ---
